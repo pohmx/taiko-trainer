@@ -8,4 +8,4 @@ SEE ISSUE https://github.com/jiaaro/pydub/issues/645, to fix .ogg conversion cra
 USING data from https://github.com/l3lackShark/gosumemory
 TO DO: 
 - ADD GUI
-- MOVE FILES
+- MOVE FILES [OK]
