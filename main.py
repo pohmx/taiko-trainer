@@ -23,8 +23,9 @@ import re
 
 link = "http://localhost:24050/json"
 one = True
-newRate = 1.5
+newRate = 2
 exportOsu = ""
+osuIsLoaded = False
 
 '''
 # UNUSED
@@ -289,27 +290,29 @@ def createMap(audio, rate):
 			f.write(line+'\n')
 	
 while True:
+	# CHECK CONNECTION (IF DATA EXISTS.)
+	try:
+		json_data = str(urlopen(link).read().decode('utf-8'))
+		json_converted = json.loads(json_data, strict=False)
+		try:				
+			# PATHS
+			song_folder = json_converted['settings']['folders']['songs']
+			path_folder = json_converted['menu']['bm']['path']['folder']
+			path_beatmap = json_converted['menu']['bm']['path']['file']	
+			path_audio = json_converted['menu']['bm']['path']['audio']	
+			full_beatmap_path = song_folder + "\\" + path_folder + "\\" + path_beatmap
+			full_folder_path = song_folder + "\\" + path_folder
+			full_beatmap_path_audio = song_folder + "\\" + path_folder + "\\" + path_audio
+			# METADATA
+			metadata = json_converted['menu']['bm']['metadata']
+			# SWITCH
+			osuIsLoaded = True
+		except:
+			print('gosumemory-error: ', json_converted['error'])
+	except:
+		print("taiko-trainer-error: can't stablish connection to gosumemory.")
 
-	# RAW
-	json_data = str(urlopen(link).read())[2:-1].replace('\\\\', '\\').replace('\\x', '\\\\x').replace('\\\\u0026', '&').replace("\\'", "'")
-	json_converted = json.loads(json_data, strict=False)
-
-	#if json data is > 0
-
-	# PATHS
-	song_folder = json_converted['settings']['folders']['songs']
-	path_folder = json_converted['menu']['bm']['path']['folder']
-	path_beatmap = json_converted['menu']['bm']['path']['file']	
-	path_audio = json_converted['menu']['bm']['path']['audio']	
-	full_beatmap_path = song_folder + "\\" + path_folder + "\\" + path_beatmap
-	full_folder_path = song_folder + "\\" + path_folder
-	full_beatmap_path_audio = song_folder + "\\" + path_folder + "\\" + path_audio
-	# METADATA
-	metadata = json_converted['menu']['bm']['metadata']
-
-	#print(full_beatmap_path)
-
-	if one is True:
+	if one is True and osuIsLoaded is True:
 		one = False
 
 		# AUDIO FILE CREATION
