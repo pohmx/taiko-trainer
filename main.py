@@ -8,9 +8,10 @@
 # - ADD GUI
 # - MOVE FILES
 # /////////////////////////////////////////
+
 from urllib.request import urlopen
 import json
-from soundstretch import SoundStretch # SoundStretch 2.1.1 for Windows 
+#from soundstretch import SoundStretch # SoundStretch 2.1.1 for Windows 
 from pydub import AudioSegment
 import shutil
 import os
@@ -23,6 +24,7 @@ import re
 link = "http://localhost:24050/json"
 one = True
 newRate = 1.5
+exportOsu = ""
 
 '''
 # UNUSED
@@ -170,7 +172,19 @@ def changeTiming():
 	# HITOBJECTS
 
 	for hitObject in mapGroups['HitObjects']:
-		newObject = hitObject.split(",",3)[0] + "," + hitObject.split(",",3)[1] + "," + str(round(int(hitObject.split(",",3)[2])/newRate)) + "," + hitObject.split(",",3)[3] #X,Y,TIMING,DATA
+		if hitObject.split(",",4)[3] == '5' or hitObject.split(",",4)[3] == '1':
+			# x,y,time,type,hitSound,garbage (272,223,37748,1,8,0:0:0:0:) // HIT CIRCLE, TAIKO
+			newObject = hitObject.split(",",3)[0] + "," + hitObject.split(",",3)[1] + "," + str(round(int(hitObject.split(",",3)[2])/newRate)) + "," + hitObject.split(",",3)[3]
+		elif hitObject.split(",",4)[3] == '12':
+			# x,y,time,type,hitSound,endTime,garbage (256,192,37850,12,0,38462,0:0:0:0:) // SPINNER, TAIKO
+			newObject = hitObject.split(",",6)[0] + "," + hitObject.split(",",6)[1] + "," + str(round(int(hitObject.split(",",6)[2])/newRate)) + "," + hitObject.split(",",6)[3] + "," + hitObject.split(",",6)[4] + "," + str(round(int(hitObject.split(",",6)[5])/newRate)) + "," + hitObject.split(",",6)[6] 
+		elif hitObject.split(",",4)[3] == '128':
+			# x,y,time,type,hitSound,endTime:garbage (36,192,926,128,2,3464:0:0:0:0:) // HOLD NOTE, MANIA
+			newObject = hitObject.split(",",5)[0] + "," + hitObject.split(",",5)[1] + "," + str(round(int(hitObject.split(",",5)[2])/newRate)) + "," + hitObject.split(",",5)[3] + "," + hitObject.split(",",5)[4] + "," + str(round(int(hitObject.split(",",5)[5].split(":",1)[0])/newRate)) + ":" + hitObject.split(",",5)[5].split(":",1)[1]
+		elif hitObject.split(",",4)[3] == '2':
+			# x,y,time,type,hitSound,SLIDERDATA,repeat,osuPixelsLength(endtime)**DONT APPLY RATE HERE** 200,284,72968,2,0,L|124:273,1,70
+			newObject = hitObject.split(",",7)[0] + "," + hitObject.split(",",7)[1] + "," + str(round(int(hitObject.split(",",7)[2])/newRate)) + "," + hitObject.split(",",7)[3] + "," + hitObject.split(",",7)[4] + "," + hitObject.split(",",7)[5] + "," + hitObject.split(",",7)[6] + "," + hitObject.split(",",7)[7]
+
 		mapGroups['NewHitObjects'].append(newObject)
 
 	# BOOKMARKS
@@ -179,39 +193,18 @@ def changeTiming():
 
 	if mapGeneral['Bookmarks:'].split(",") != ['']:
 		for bookmark in mapGeneral['Bookmarks:'].split(","):
-			bookmarksNew.append(str(int(bookmark) / newRate))
+			bookmarksNew.append(str(int(int(bookmark) / newRate)))
 		mapGeneral['Bookmarks:'] = ",". join(bookmarksNew)
-	
-	'''
-	# FIGURE OUT IF MAP IN 0.5X MATCHES EXPECTED TIMING POINTS
-
-	take first point, add difference * 0.75 (rate)
-
-		newTiming_stretch.append(point)
-	else:
-		difference = str(abs(int(timingPoint.split(",",1)[0])-int(newTiming_stretch[count-1].split(",",1)[0])))
-		print(difference)
-		newTiming_stretch.append(difference + ',' + (timingPoint.split(",",1)[1]))
-		pass
-	print(newTiming_stretch)
-	
-	if count < len(newTiming) - 1:
-		number1 = int(timingPoint.split(",",1)[0])
-		number2 = int(newTiming_stretch[count-1].split(",",1)[0])
-		difference = abs(number1-number2)
-		print(difference)
-	if count == len(newTiming) - 1:
-		number1 = int(timingPoint[count-1].split(",",1)[0])
-		number2 = int(newTiming_stretch[-1].split(",",1)[0])
-		difference = abs(number1-number2)
-		print(difference)
-	'''
 
 def createMap(audio, rate):
+
+	global exportOsu
+
 	if bpm != 0:
 		mapGeneral['Version:'] = mapGeneral['Version:'] + ' ' + str(float(rate)) + 'x (' + str(bpm) + 'bpm)'
 	else:
 		mapGeneral['Version:'] = mapGeneral['Version:'] + ' ' + str(float(rate)) + 'x'
+
 	mapGeneral['AudioFilename:'] = audio
 	mapGeneral['PreviewTime:'] = str(int(int(mapGeneral['PreviewTime:']) / newRate))
 	mapGeneral['Tags:'] += ' nimi-trainer'
@@ -289,8 +282,7 @@ def createMap(audio, rate):
 	newMap.append('')
 
 	filename = mapGeneral['Artist:'] + ' - ' + mapGeneral['Title:'] + ' (' + mapGeneral['Creator:'] + ') ' + '[' + mapGeneral['Version:'] +  '].osu'
-
-	# print(filename)
+	exportOsu = filename
 
 	with open(filename,'w', encoding="utf8") as f:
 		for line in newMap:
@@ -299,15 +291,18 @@ def createMap(audio, rate):
 while True:
 
 	# RAW
-	json_data = str(urlopen(link).read())[2:-1].replace('\\x', '\\\\x').replace('\\\\u0026', '&')
-	json_converted = json.loads(json_data)
+	json_data = str(urlopen(link).read())[2:-1].replace('\\\\', '\\').replace('\\x', '\\\\x').replace('\\\\u0026', '&').replace("\\'", "'")
+	json_converted = json.loads(json_data, strict=False)
+
+	#if json data is > 0
 
 	# PATHS
-	song_folder = json_converted['settings']['folders']['songs'].replace('\\\\', '\\')	
+	song_folder = json_converted['settings']['folders']['songs']
 	path_folder = json_converted['menu']['bm']['path']['folder']
-	path_beatmap = json_converted['menu']['bm']['path']['file']
-	path_audio = json_converted['menu']['bm']['path']['audio']
+	path_beatmap = json_converted['menu']['bm']['path']['file']	
+	path_audio = json_converted['menu']['bm']['path']['audio']	
 	full_beatmap_path = song_folder + "\\" + path_folder + "\\" + path_beatmap
+	full_folder_path = song_folder + "\\" + path_folder
 	full_beatmap_path_audio = song_folder + "\\" + path_folder + "\\" + path_audio
 	# METADATA
 	metadata = json_converted['menu']['bm']['metadata']
@@ -363,3 +358,7 @@ while True:
 		createMap(newAudio, newRate)
 
 		# COPY TO ORIGINAL FOLDER
+		shutil.copyfile(newAudio, full_folder_path + '\\' + newAudio)
+		shutil.copyfile(exportOsu, full_folder_path + '\\' + exportOsu)
+		os.remove(newAudio)
+		os.remove(exportOsu)
