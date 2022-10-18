@@ -11,7 +11,6 @@
 
 from urllib.request import urlopen
 import json
-#from soundstretch import SoundStretch # SoundStretch 2.1.1 for Windows 
 from pydub import AudioSegment
 import shutil
 import os
@@ -27,24 +26,6 @@ newRate = 2
 exportOsu = ""
 osuIsLoaded = False
 
-'''
-# UNUSED
-# https://github.com/Manarabdelaty/Audio-Stretching
-def stretch_funny(fname, factor): #audio.wav, 0.5
-	infile=wave.open( fname, 'rb')
-	rate= infile.getframerate()
-	channels=infile.getnchannels()
-	swidth=infile.getsampwidth()
-	nframes= infile.getnframes()
-	audio_signal= infile.readframes(nframes)
-	outfile = wave.open('stretched.wav', 'wb')
-	outfile.setnchannels(channels)
-	outfile.setsampwidth(swidth)
-	outfile.setframerate(rate/factor)
-	outfile.writeframes(audio_signal)
-	outfile.close()
-	return
-'''
 
 # BEATMAP STRUCTURE
 mapLines = []
@@ -59,6 +40,7 @@ mapGeneral = { # osu file format v14
 	'StackLeniency:':'',
 	'Mode:':'',
 	'LetterboxInBreaks:':'',
+	'SpecialStyle:':'',
 	'WidescreenStoryboard:':'',
 	# [Editor]
 	'Bookmarks:':'',
@@ -89,6 +71,7 @@ mapGroups = {
 	# [Group]
 	'Events':[],
 	'TimingPoints':[],
+	'Colours':[],
 	'HitObjects':[],
 	'NewHitObjects':[],
 }
@@ -102,7 +85,7 @@ def getBpm():
 	if len(bpm_list) == 1:
 		bpm = bpm_list[0]
 	# IF THERE ARE MORE BPMS DONT CARE
-	print(bpm)
+	print("BPM: ",bpm)
 
 def readOsu(osuFile):
 	global mapLines
@@ -131,13 +114,23 @@ def readOsu(osuFile):
 		
 	# Read [Timing Points]
 	for line in mapLines:		
-		if '[HitObjects]' in line:
+		if '[Colours]' in line:
 			capture = False
 		if capture:			
 			mapGroups['TimingPoints'].append(line.rstrip("\n"))
 		if '[TimingPoints]' in line:
 			capture = True
 	mapGroups['TimingPoints'] = [x for x in mapGroups['TimingPoints'] if x]
+
+	# Read [Colours]
+	for line in mapLines:		
+		if '[HitObjects]' in line:
+			capture = False
+		if capture:			
+			mapGroups['Colours'].append(line.rstrip("\n"))
+		if '[Colours]' in line:
+			capture = True
+	mapGroups['Colours'] = [x for x in mapGroups['Colours'] if x]
 
 	# Read [HitObjects]
 	for line in mapLines:
@@ -219,6 +212,7 @@ def createMap(audio, rate):
 		'StackLeniency:',
 		'Mode:',
 		'LetterboxInBreaks:',
+		'SpecialStyle:',
 		'WidescreenStoryboard:'
 		]
 	editor = [
@@ -248,6 +242,13 @@ def createMap(audio, rate):
 		'SliderMultiplier:',
 		'SliderTickRate:'
 	]
+	
+	if len(mapGeneral['TimelineZoom:']) == 0:
+		editor.remove('TimelineZoom:') # remove from above list, not from raw data dictionary
+
+	if len(mapGeneral['Bookmarks:']) == 0:
+		editor.remove('Bookmarks:') # remove from above list, not from raw data dictionary
+
 	for v in general:
 		newMap.append(str(v+' '+mapGeneral[v]))
 	newMap.append('')
@@ -277,15 +278,20 @@ def createMap(audio, rate):
 		newMap.append(v)
 	newMap.append('')
 
+	newMap.append('[Colours]')
+	for v in mapGroups['Colours']:
+		newMap.append(v)
+	newMap.append('')
+
 	newMap.append('[HitObjects]')
 	for v in mapGroups['NewHitObjects']:
 		newMap.append(v)
 	newMap.append('')
 
 	filename = mapGeneral['Artist:'] + ' - ' + mapGeneral['Title:'] + ' (' + mapGeneral['Creator:'] + ') ' + '[' + mapGeneral['Version:'] +  '].osu'
-	exportOsu = filename
+	exportOsu = filename.replace('"','')
 
-	with open(filename,'w', encoding="utf8") as f:
+	with open(exportOsu,'w', encoding="utf8") as f:
 		for line in newMap:
 			f.write(line+'\n')
 	
@@ -316,28 +322,27 @@ while True:
 		one = False
 
 		# AUDIO FILE CREATION
+		# COPY TO ROOT, CONVERT .MP3 & .OGG TO .WAV
+		# CALCULATION, NAMING OF FILE
+
 		shutil.copyfile(full_beatmap_path_audio, path_audio)
 		path_wav = os.path.splitext(path_audio)[0] + ".wav"
 
 		if os.path.splitext(path_audio)[1] == '.mp3':			
 			sound = AudioSegment.from_mp3(path_audio)			
 			sound.export(path_wav, format="wav")
-			os.remove(path_audio)	# clean up
+
 		elif os.path.splitext(path_audio)[1] == '.ogg':			
 			sound = AudioSegment.from_ogg(path_audio)
 			sound.export(path_wav, format="wav")
-			os.remove(path_audio)	# clean up
 
-		'''
-		normalized_rate = Decimal(1.5) * Decimal(newRate)
-		bpm_effectiveMultiplier = normalized_rate / Decimal(1.5) 
-		bpm_multiplier = (bpm_effectiveMultiplier - 1) * 100
-		'''
-
+		os.remove(path_audio)
 		bpm_multiplier = (newRate - 1) * 100
 		newAudio = os.path.splitext(path_audio)[0] + '-' +  str(float(newRate)) + 'x.wav' 
 
-		# OPTIONS
+		# SETS SOUNDSTRETCHER OPTIONS
+		# CREATES FILE, REMOVES OLD .WAV
+
 		switches_quick = True
 		switches_no_anti_alias = True
 		switches_string = ''
@@ -346,22 +351,23 @@ while True:
 
 		switches = 'soundstretch.exe "' + sys.path[0] + '\\' + path_wav + '" "' + sys.path[0] + '\\' + newAudio + '"' + switches_string + ' -tempo=' + str(bpm_multiplier)
 		subprocess.run(switches, shell=True) # MAYBE CHECK RETURN
-		#stretch_funny(path_wav, 0.75) FUNNY STRETCH OPTION
 		os.remove(path_wav)
 
 		mp3 = AudioSegment.from_file(newAudio)
 		mp3.export(os.path.splitext(newAudio)[0]+'.mp3', format="mp3", bitrate="320k")
-		os.remove(newAudio)
-		newAudio = os.path.splitext(newAudio)[0]+'.mp3'
+		newAudio_mp3 = os.path.splitext(newAudio)[0]+'.mp3'		
 
 		# BEATMAP CREATION
 		readOsu(full_beatmap_path)
 		changeTiming()
 		getBpm()
-		createMap(newAudio, newRate)
+		createMap(newAudio_mp3, newRate)
 
 		# COPY TO ORIGINAL FOLDER
-		shutil.copyfile(newAudio, full_folder_path + '\\' + newAudio)
+		shutil.copyfile(newAudio, full_folder_path + '\\' + newAudio_mp3)
 		shutil.copyfile(exportOsu, full_folder_path + '\\' + exportOsu)
 		os.remove(newAudio)
+		os.remove(newAudio_mp3)
 		os.remove(exportOsu)
+
+		print('taiko-trainer-info: created file', exportOsu, newAudio_mp3)
