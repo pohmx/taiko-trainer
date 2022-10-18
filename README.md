@@ -1,7 +1,7 @@
 # taiko-trainer
 gosumemory reader and rate modifier for osu
 
-TAIKO RATE CONVERTER / ? UNTESTED OTHER MODES
+TAIKO RATE CONVERTER / MANIA TESTED.
 NAKABAMITV (pohmx) - DEVELOPMENT 2022
 https://www.surina.net/soundtouch/README.html#SoundStretch COMMANDS
 SEE ISSUE https://github.com/jiaaro/pydub/issues/645, to fix .ogg conversion crackling
