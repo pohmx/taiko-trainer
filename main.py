@@ -22,10 +22,9 @@ import re
 
 link = "http://localhost:24050/json"
 one = True
-newRate = 2
+newRate = 1.2
 exportOsu = ""
 osuIsLoaded = False
-
 
 # BEATMAP STRUCTURE
 mapLines = []
@@ -81,7 +80,7 @@ def getBpm():
 	bpm_list = []
 	for t in mapGroups['TimingPoints']:
 		if t.split(",",1)[1][0] != '-':
-			bpm_list.append(int(1/float(t.split(',')[1])*60000))
+			bpm_list.append(int(round(1/float(t.split(',')[1])*60000))) # round then convert
 	if len(bpm_list) == 1:
 		bpm = bpm_list[0]
 	# IF THERE ARE MORE BPMS DONT CARE
@@ -104,7 +103,7 @@ def readOsu(osuFile):
 	
 	# Read [Events]
 	for line in mapLines:			
-		if '[TimingPoints]' in line:
+		if '[' in line:
 			capture = False
 		if capture:
 			mapGroups['Events'].append(line.rstrip("\n"))
@@ -114,7 +113,7 @@ def readOsu(osuFile):
 		
 	# Read [Timing Points]
 	for line in mapLines:		
-		if '[Colours]' in line:
+		if '[' in line:
 			capture = False
 		if capture:			
 			mapGroups['TimingPoints'].append(line.rstrip("\n"))
@@ -124,7 +123,7 @@ def readOsu(osuFile):
 
 	# Read [Colours]
 	for line in mapLines:		
-		if '[HitObjects]' in line:
+		if '[' in line:
 			capture = False
 		if capture:			
 			mapGroups['Colours'].append(line.rstrip("\n"))
@@ -200,7 +199,9 @@ def createMap(audio, rate):
 		mapGeneral['Version:'] = mapGeneral['Version:'] + ' ' + str(float(rate)) + 'x'
 
 	mapGeneral['AudioFilename:'] = audio
-	mapGeneral['PreviewTime:'] = str(int(int(mapGeneral['PreviewTime:']) / newRate))
+	if mapGeneral['PreviewTime:'] != '-1': #?
+		mapGeneral['PreviewTime:'] = str(int(int(mapGeneral['PreviewTime:']) / newRate))
+
 	mapGeneral['Tags:'] += ' nimi-trainer'
 	newMap = ['osu file format v14','','[General]']
 	general = [
@@ -243,8 +244,13 @@ def createMap(audio, rate):
 		'SliderTickRate:'
 	]
 	
+	# REMOVE EMPTY DATA
+
+	if len(mapGeneral['SpecialStyle:']) == 0:
+		general.remove('SpecialStyle:') 
+
 	if len(mapGeneral['TimelineZoom:']) == 0:
-		editor.remove('TimelineZoom:') # remove from above list, not from raw data dictionary
+		editor.remove('TimelineZoom:') 
 
 	if len(mapGeneral['Bookmarks:']) == 0:
 		editor.remove('Bookmarks:') # remove from above list, not from raw data dictionary
@@ -278,10 +284,12 @@ def createMap(audio, rate):
 		newMap.append(v)
 	newMap.append('')
 
-	newMap.append('[Colours]')
-	for v in mapGroups['Colours']:
-		newMap.append(v)
-	newMap.append('')
+	# REMOVE EMPTY HEADERS
+	if len(mapGroups['Colours']) != 0:
+		newMap.append('[Colours]')
+		for v in mapGroups['Colours']:
+			newMap.append(v)
+		newMap.append('')
 
 	newMap.append('[HitObjects]')
 	for v in mapGroups['NewHitObjects']:
@@ -328,15 +336,18 @@ while True:
 		shutil.copyfile(full_beatmap_path_audio, path_audio)
 		path_wav = os.path.splitext(path_audio)[0] + ".wav"
 
-		if os.path.splitext(path_audio)[1] == '.mp3':			
-			sound = AudioSegment.from_mp3(path_audio)			
-			sound.export(path_wav, format="wav")
+		if os.path.splitext(path_audio)[1] == '.mp3':
+			try:
+				sound = AudioSegment.from_file(path_audio, 'mp3') # NORMAL READ			
+				sound.export(path_wav, format="wav")
+			except:
+				sound = AudioSegment.from_file(path_audio) # EXCEPTED READ // CAN'T FIND CONTAINER
+				sound.export(path_wav, format="wav")
 
 		elif os.path.splitext(path_audio)[1] == '.ogg':			
 			sound = AudioSegment.from_ogg(path_audio)
 			sound.export(path_wav, format="wav")
-
-		os.remove(path_audio)
+		
 		bpm_multiplier = (newRate - 1) * 100
 		newAudio = os.path.splitext(path_audio)[0] + '-' +  str(float(newRate)) + 'x.wav' 
 
@@ -353,7 +364,7 @@ while True:
 		subprocess.run(switches, shell=True) # MAYBE CHECK RETURN
 		os.remove(path_wav)
 
-		mp3 = AudioSegment.from_file(newAudio)
+		mp3 = AudioSegment.from_wav(newAudio)
 		mp3.export(os.path.splitext(newAudio)[0]+'.mp3', format="mp3", bitrate="320k")
 		newAudio_mp3 = os.path.splitext(newAudio)[0]+'.mp3'		
 
@@ -366,6 +377,7 @@ while True:
 		# COPY TO ORIGINAL FOLDER
 		shutil.copyfile(newAudio, full_folder_path + '\\' + newAudio_mp3)
 		shutil.copyfile(exportOsu, full_folder_path + '\\' + exportOsu)
+		os.remove(path_audio)
 		os.remove(newAudio)
 		os.remove(newAudio_mp3)
 		os.remove(exportOsu)
