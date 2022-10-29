@@ -22,7 +22,7 @@ import re
 
 link = "http://localhost:24050/json"
 one = True
-newRate = 1.2
+newRate = 1.7
 exportOsu = ""
 osuIsLoaded = False
 
@@ -177,7 +177,9 @@ def changeTiming():
 		elif hitObject.split(",",4)[3] == '2':
 			# x,y,time,type,hitSound,SLIDERDATA,repeat,osuPixelsLength(endtime)**DONT APPLY RATE HERE** 200,284,72968,2,0,L|124:273,1,70
 			newObject = hitObject.split(",",7)[0] + "," + hitObject.split(",",7)[1] + "," + str(round(int(hitObject.split(",",7)[2])/newRate)) + "," + hitObject.split(",",7)[3] + "," + hitObject.split(",",7)[4] + "," + hitObject.split(",",7)[5] + "," + hitObject.split(",",7)[6] + "," + hitObject.split(",",7)[7]
-
+		elif hitObject.split(",",4)[3] == '6':
+			newObject = hitObject.split(",",7)[0] + "," + hitObject.split(",",7)[1] + "," + str(round(int(hitObject.split(",",7)[2])/newRate)) + "," + hitObject.split(",",7)[3] + "," + hitObject.split(",",7)[4] + "," + hitObject.split(",",7)[5] + "," + hitObject.split(",",7)[6] + "," + hitObject.split(",",7)[7]
+			print(hitObject, newObject)
 		mapGroups['NewHitObjects'].append(newObject)
 
 	# BOOKMARKS
